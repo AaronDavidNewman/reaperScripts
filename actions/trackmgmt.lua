@@ -12,46 +12,6 @@ function ternary(condition, first, second)
 end  
 
 --[[
-Mute drum tracks.  If > number of tracks, mute all.
---]]
-function muteDrumTracks(track)
-  tracknum = 0
-  while tracknum < 3 do
-    trackMedia = reaper.GetTrack(0, tracknum);
-    if (tracknum == track) then
-      reaper.SetMediaTrackInfo_Value(trackMedia, "B_MUTE", 0);
-    else 
-      reaper.SetMediaTrackInfo_Value(trackMedia , "B_MUTE", 1);
-    end
-    tracknum = tracknum + 1
-  end
-end
-
---[[
-Disable the sequencer.  This is desireable if there is midi
-on the drum tracks, and we want the recorded drum track
---]]
-function enableSequencer(enable)
-  tracknum = 0
-  while tracknum < 3 do
-    trackMedia = reaper.GetTrack(0, tracknum);
-    reaper.TrackFX_SetEnabled(trackMedia, 0, enable);
-    tracknum = tracknum + 1
-  end
-end
-
---[[
-Get input from a menu to mute/unmute drum tracks
---]]
-function getMuteInput()
-  menuval = gfx.showmenu("Play Track 1|Play Track 2|Play Track 3|Mute All|Close");
-  if (menuval < 5) then
-    muteDrumTracks(menuval - 1);
-    advanceLoopRange();
-  end
-end
-
---[[
 Disarm all tracks
 --]]
 function disarmAll()
@@ -95,14 +55,38 @@ function advanceLoopRange()
   -- reaper.ShowConsoleMsg(string.format("loop range is %f %f\n", startOut, endOut));
 end
 
---[[
-Get input for the sequencer enable/disable
---]]
-function getFxInput()
-  menuval = gfx.showmenu("Enable Sequencers|Disable Sequencers|Close");
-  if (menuval < 3) then
-    enableSequencer(ternary(menuval == 1, 1, 0));
+function copyAdvanceLoopRange()
+  startOut, endOut = reaper.GetSet_LoopTimeRange(false, true, 0, 0, false);
+  loopLength = endOut - startOut;
+  if (loopLength < 1) then
+    return;
   end
+  newStart = endOut;
+  newEnd = startOut + endOut;
+  cursorPosition = reaper.GetCursorPosition();
+  trackCount = reaper.GetNumTracks();
+  reaper.Main_OnCommand(40289, 0);  -- unselect all
+  while trackCount > 0 do
+      trackMedia = reaper.GetTrack(0, trackCount - 1);
+      reaper.SetOnlyTrackSelected(trackMedia);
+  
+      itemCount = reaper.GetTrackNumMediaItems(trackMedia);
+      while (itemCount > 0) do
+        mediaItem = reaper.GetTrackMediaItem(trackMedia, itemCount - 1);
+        mediaPos = reaper.GetMediaItemInfo_Value(mediaItem, "D_POSITION");
+        if (mediaPos >= startOut and mediaPos <= endOut) then
+          reaper.ShowConsoleMsg(string.format("found selection track %f pos %f\n", trackCount - 1, mediaPos));
+          reaper.SetMediaItemSelected(mediaItem, 1);
+          reaper.Main_OnCommand(40698, 0); -- copy
+          reaper.SetEditCurPos(mediaPos + loopLength, false, false);
+          reaper.Main_OnCommand(42398, 0); -- paste
+        end
+        itemCount = itemCount - 1;
+      end
+      trackCount = trackCount - 1;
+   end
+    reaper.SetEditCurPos(cursorPosition, false, false);
+    reaper.Main_OnCommand(40289, 0);
 end
 
 --[[
@@ -118,6 +102,24 @@ function checkClick(rect)
   return false;
 end
 
+--[[
+Mute drum tracks.  If > number of tracks, mute all.
+--]]
+function muteDisarm()
+  trackCount = reaper.GetNumTracks();
+  while trackCount > 0 do
+     trackMedia = reaper.GetTrack(0, trackCount - 1);
+     
+     isSelected = reaper.GetMediaTrackInfo_Value(trackMedia, "I_SELECTED");
+     if (isSelected > 0) then
+        reaper.SetMediaTrackInfo_Value(trackMedia, "I_RECARM", 0);
+        reaper.SetMediaTrackInfo_Value(trackMedia, "B_MUTE", 1);
+     end
+     -- reaper.ShowConsoleMsg(string.format("arm: %f %f",trackCount , isSelected));
+     trackCount = trackCount - 1;
+  end
+
+end
 --[[
 create the ugly reaper buttons
 --]]
@@ -175,11 +177,11 @@ end
 
 -- create ugly buttons
 buttons = {};
-buttons[0] = {w=80, h=40, x = 50, y = 50, text="Mute", r=1, g = 0.2, b=0.3, handler = getMuteInput };
-buttons[1] = {w=80, h=40, x = 150, y = 50, text="Seq", r=0.1, g = 1, b=0.3, handler = getFxInput };
-buttons[2] = {w=80, h=40, x = 250, y = 50, text="Adv Loop", r=0.1, g = 0.2, b=1, handler = advanceLoopRange };
-buttons[3] = {w=80, h=40, x = 50, y = 110, text="Arm Sel", r=1, g = 0.2, b=0.3, handler = armSelected };
-buttons[4] = {w=80, h=40, x = 150, y = 110, text="Disarm", r=0.6, g = 0.1, b=0.1, handler = disarmAll };
+buttons[0] = {w=80, h=40, x = 50, y = 50, text="CopyLoop", r=0.2, g = 0.8, b=0.3, handler = copyAdvanceLoopRange };
+buttons[1] = {w=80, h=40, x = 150, y = 50, text="Adv Loop", r=0.1, g = 0.2, b=1, handler = advanceLoopRange };
+buttons[2] = {w=80, h=40, x = 50, y = 110, text="Arm Sel", r=1, g = 0.2, b=0.3, handler = armSelected };
+buttons[3] = {w=80, h=40, x = 250, y = 110, text="Disarm", r=0.6, g = 0.1, b=0.1, handler = disarmAll };
+buttons[4] = {w=80, h=40, x = 150, y = 110, text="Mute", r=0.6, g = 0.1, b=0.1, handler = muteDisarm };
 buttons[5] = {w=80, h=40, x = 50, y = 220, text="Quit", r=1, g = 0, b=0.3, handler = nil };
 
 maxButtonIndex = 5;
@@ -192,4 +194,3 @@ initGfx();
 
 -- start event loop
 reaper.defer(monitorInput);
-
