@@ -75,7 +75,7 @@ function copyAdvanceLoopRange()
         mediaItem = reaper.GetTrackMediaItem(trackMedia, itemCount - 1);
         mediaPos = reaper.GetMediaItemInfo_Value(mediaItem, "D_POSITION");
         if (mediaPos >= startOut and mediaPos <= endOut) then
-          reaper.ShowConsoleMsg(string.format("found selection track %f pos %f\n", trackCount - 1, mediaPos));
+          -- reaper.ShowConsoleMsg(string.format("found selection track %f pos %f\n", trackCount - 1, mediaPos));
           reaper.SetMediaItemSelected(mediaItem, 1);
           reaper.Main_OnCommand(40698, 0); -- copy
           reaper.SetEditCurPos(mediaPos + loopLength, false, false);
@@ -102,6 +102,13 @@ function checkClick(rect)
   return false;
 end
 
+function metronome()
+  trackMedia = reaper.GetTrack(0, 0);
+  isMute = reaper.GetMediaTrackInfo_Value(trackMedia, "B_MUTE");
+  isMute = ternary(isMute == 0, 1, 0);
+  -- reaper.ShowConsoleMsg(string.format("muting %f", isMute));
+  reaper.SetMediaTrackInfo_Value(trackMedia, "B_MUTE", isMute);
+end
 --[[
 Mute drum tracks.  If > number of tracks, mute all.
 --]]
@@ -183,8 +190,9 @@ buttons[2] = {w=80, h=40, x = 50, y = 110, text="Arm Sel", r=1, g = 0.2, b=0.3, 
 buttons[3] = {w=80, h=40, x = 250, y = 110, text="Disarm", r=0.6, g = 0.1, b=0.1, handler = disarmAll };
 buttons[4] = {w=80, h=40, x = 150, y = 110, text="Mute", r=0.6, g = 0.1, b=0.1, handler = muteDisarm };
 buttons[5] = {w=80, h=40, x = 50, y = 220, text="Quit", r=1, g = 0, b=0.3, handler = nil };
+buttons[6] = {w=80, h=40, x = 250, y = 50, text="Metr+-", r=0.3, g = 0.3, b=0.3, handler = metronome };
 
-maxButtonIndex = 5;
+maxButtonIndex = 6;
 -- debounce mouse to avoid double-click
 debounceCount = 0;
 debounceTime = 20;
